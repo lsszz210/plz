@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Financial Analyzer</title>
+  <link rel="stylesheet" href="style.css" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script type="text/babel">
+function App() {
+  const [symbol, setSymbol] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const chartRef = React.useRef(null);
+  const chartInstance = React.useRef(null);
+
+  const submit = async e => {
+    e.preventDefault();
+    setResult(null);
+    if (chartInstance.current) { chartInstance.current.destroy(); }
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol })
+    });
+    const data = await res.json();
+    setResult(data);
+    if (data.history && chartRef.current) {
+      const ctx = chartRef.current.getContext('2d');
+      chartInstance.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.history.map(h => h.date),
+          datasets: [{
+            label: 'Close',
+            data: data.history.map(h => h.close),
+            borderColor: 'blue',
+            fill: false
+          }]
+        },
+        options: { scales: { x: { display: false } } }
+      });
+    }
+  };
+
+  return (
+    <div>
+      <h1>Financial Analyzer</h1>
+      <form onSubmit={submit}>
+        <input value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="Symbol (e.g. AAPL or btc/usd)" required />
+        <button type="submit">Analyze</button>
+      </form>
+      {result && result.error && <p>{result.error}</p>}
+      {result && result.report && (
+        <div>
+          <canvas ref={chartRef}></canvas>
+          <pre>{JSON.stringify(result.report, null, 2)}</pre>
+          {result.report.financials && (
+            <table className="fin">
+              <tbody>
+                {Object.entries(result.report.financials).map(([k, v]) => (
+                  <tr key={k}><td>{k}</td><td>{v}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+</script>
+</body>
+</html>
